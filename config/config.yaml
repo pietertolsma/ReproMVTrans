@@ -23,8 +23,8 @@ model:
       stage3_scale: 1.0
       transformer: True
       view_count: 2
-      resnet: 50
-      ndepths: 64
+      resnet: 18
+      ndepths: 2
       depth_min: 0.01
       depth_max: 10.0
 datasets:

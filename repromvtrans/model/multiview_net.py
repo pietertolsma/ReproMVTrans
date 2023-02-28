@@ -12,6 +12,7 @@ from repromvtrans.utils.layer_operations import convbn_3d, convbnrelu_3d
 class MVNet(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+        self.use_transformer = cfg.model.mvnet.parameters.transformer
         self.stage1_scale = cfg.model.mvnet.parameters.stage1_scale
         self.stage2_scale = cfg.model.mvnet.parameters.stage2_scale
         self.stage3_scale = cfg.model.mvnet.parameters.stage3_scale
@@ -116,7 +117,9 @@ class MVNet(nn.Module):
         #     len(small_disp_output.shape) == 4
         # ), f"Expecting depth to be Nx1xHxW, but got {small_disp_output.shape}"
 
-        return outputs[("depth", 0, 2)]
+        if self.use_transformer:
+            return nn.functional.interpolate(outputs[("depth", 0, 2)], size=(800, 800))
+        return outputs[("depth", 0, 0)]
 
     def get_costvolume(self, features, cam_poses, cam_intr, depth_values, device="cpu"):
         """

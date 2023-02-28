@@ -22,8 +22,12 @@ class ResnetEncoder(nn.Module):
             18: models.resnet18,
             34: models.resnet34,
             50: models.resnet50,
-            101: models.resnet101,
-            152: models.resnet152,
+        }
+
+        weights = {
+            18: models.ResNet18_Weights,
+            34: models.ResNet34_Weights,
+            50: models.ResNet50_Weights,
         }
 
         if num_layers not in resnets:
@@ -32,7 +36,7 @@ class ResnetEncoder(nn.Module):
             )
 
         self.encoder = resnets[num_layers](
-            weights=models.ResNet50_Weights.DEFAULT if pretrained is True else None
+            weights=weights[num_layers] if pretrained is True else None
         )
 
         if num_layers > 34:
