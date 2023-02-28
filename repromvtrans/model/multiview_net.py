@@ -116,7 +116,7 @@ class MVNet(nn.Module):
         #     len(small_disp_output.shape) == 4
         # ), f"Expecting depth to be Nx1xHxW, but got {small_disp_output.shape}"
 
-        return outputs[("depth", 0, 0)]
+        return outputs[("depth", 0, 2)]
 
     def get_costvolume(self, features, cam_poses, cam_intr, depth_values, device="cpu"):
         """

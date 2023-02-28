@@ -342,108 +342,108 @@ class DepthHybridDecoder(nn.Module):
             cam_poses[-1:],
         )
 
-    # def forward_notransformer(
-    #     self,
-    #     costvolumes,
-    #     semantic_features,
-    #     cam_poses,
-    #     cam_intr,
-    #     depth_values,
-    #     depth_min,
-    #     depth_interval,
-    #     pre_costs=None,
-    #     pre_cam_poses=None,
-    #     if_trans_weight=True,
-    # ):
-    #     """
-    #     :param costvolumes: list of [N,C,D,H,W]
-    #     :param cam_poses: list of [N,4,4]
-    #     :param cam_intr: [N,3,3]
-    #     :param depth_values: [N, ndepths, H, W]
-    #     :return:
-    #     """
-    #     num = len(costvolumes)
-    #     B, C, D, H, W = costvolumes[0].shape
-    #     # depth_values_lowres = depth_values.repeat(1, 1, H, W)
-    #     depth_values_highres = depth_values.repeat(1, 1, H, W)
-    #     outputs = {}
+    def forward_notransformer(
+        self,
+        costvolumes,
+        semantic_features,
+        cam_poses,
+        cam_intr,
+        depth_values,
+        depth_min,
+        depth_interval,
+        pre_costs=None,
+        pre_cam_poses=None,
+        if_trans_weight=True,
+    ):
+        """
+        :param costvolumes: list of [N,C,D,H,W]
+        :param cam_poses: list of [N,4,4]
+        :param cam_intr: [N,3,3]
+        :param depth_values: [N, ndepths, H, W]
+        :return:
+        """
+        num = len(costvolumes)
+        B, C, D, H, W = costvolumes[0].shape
+        # depth_values_lowres = depth_values.repeat(1, 1, H, W)
+        depth_values_highres = depth_values.repeat(1, 1, H, W)
+        outputs = {}
 
-    #     if self.pixel_grid is None:
-    #         self.pixel_grid = (
-    #             set_id_grid(H, W).to(costvolumes[0].dtype).to(costvolumes[0].device)
-    #         )  # [1, 3, H, W]
-    #         self.pixel_grid = self.pixel_grid.view(1, 3, 1, H * W).repeat(
-    #             B, 1, D, 1
-    #         )  # [B, 3, D, H*W]
+        if self.pixel_grid is None:
+            self.pixel_grid = (
+                set_id_grid(H, W).to(costvolumes[0].dtype).to(costvolumes[0].device)
+            )  # [1, 3, H, W]
+            self.pixel_grid = self.pixel_grid.view(1, 3, 1, H * W).repeat(
+                B, 1, D, 1
+            )  # [B, 3, D, H*W]
 
-    #     # scale 4
-    #     x = self.upconv_4_0(semantic_features[4])
-    #     x = [upsample(x)]
-    #     if self.use_skips:
-    #         x += [semantic_features[3]]
-    #     x = torch.cat(x, 1)
-    #     x = self.upconv_4_1(x)
+        # scale 4
+        x = self.upconv_4_0(semantic_features[4])
+        x = [upsample(x)]
+        if self.use_skips:
+            x += [semantic_features[3]]
+        x = torch.cat(x, 1)
+        x = self.upconv_4_1(x)
 
-    #     # scale 3
-    #     x = self.upconv_3_0(x)
-    #     x = [upsample(x)]
-    #     if self.use_skips:
-    #         x += [semantic_features[2]]
-    #     x = torch.cat(x, 1)
-    #     x = self.upconv_3_1(x)
+        # scale 3
+        x = self.upconv_3_0(x)
+        x = [upsample(x)]
+        if self.use_skips:
+            x += [semantic_features[2]]
+        x = torch.cat(x, 1)
+        x = self.upconv_3_1(x)
 
-    #     # scale 2
-    #     x = self.upconv_2_0(x)
-    #     x = [upsample(x)]
-    #     if self.use_skips:
-    #         x += [semantic_features[1]]
-    #     x = torch.cat(x, 1)
-    #     semantic_vs = self.upconv_2_1(x)  # after relu, [B*num, C, H, W]
+        # scale 2
+        x = self.upconv_2_0(x)
+        x = [upsample(x)]
+        if self.use_skips:
+            x += [semantic_features[1]]
+        x = torch.cat(x, 1)
+        semantic_vs = self.upconv_2_1(x)  # after relu, [B*num, C, H, W]
 
-    #     # stack cost volumes together
-    #     costvolumes = torch.stack(costvolumes, dim=1)
-    #     costvolumes = self.collapse_num(costvolumes)
-    #     # 3D matching guidance features
-    #     matching_x = self.dres0(costvolumes)
-    #     matching_x = self.dres1(matching_x)
-    #     x = torch.cat([semantic_vs.unsqueeze(1), matching_x], dim=1)  # [B*num,33,D,H,W]
-    #     x = self.dres2(x)
+        # stack cost volumes together
+        costvolumes = torch.stack(costvolumes, dim=1)
+        costvolumes = self.collapse_num(costvolumes)
+        # 3D matching guidance features
+        matching_x = self.dres0(costvolumes)
+        matching_x = self.dres1(matching_x)
+        x = torch.cat([semantic_vs.unsqueeze(1), matching_x], dim=1)  # [B*num,33,D,H,W]
+        x = self.dres2(x)
 
-    #     value = self.value_layer(x)
-    #     key = self.key_layer(x)
-    #     init_logits_ = self.stereo_head0(value).squeeze(1)  # [B*num,D,H,W]
-    #     init_logits = init_logits_
+        value = self.value_layer(x)
+        key = self.key_layer(x)
+        init_logits_ = self.stereo_head0(value).squeeze(1)  # [B*num,D,H,W]
+        init_logits = init_logits_
 
-    #     pred_depth_s3, pred_prob_s3 = depthlayer(init_logits, depth_values_highres)
-    #     pred_depth_s3 = self.expand_num(pred_depth_s3, num)  # [B, num,1,H,W]
-    #     pred_prob_s3 = self.expand_num(pred_prob_s3, num)
-    #     for img_idx in range(num):
-    #         outputs[("depth", img_idx, 3)] = pred_depth_s3[:, img_idx, :, :, :]
-    #         outputs[("init_prob", img_idx)] = pred_prob_s3[:, img_idx, :, :, :]
+        pred_depth_s3, pred_prob_s3 = depthlayer(init_logits, depth_values_highres)
+        pred_depth_s3 = self.expand_num(pred_depth_s3, num)  # [B, num,1,H,W]
+        pred_prob_s3 = self.expand_num(pred_prob_s3, num)
+        for img_idx in range(num):
+            outputs[("depth", img_idx, 3)] = pred_depth_s3[:, img_idx, :, :, :]
+            outputs[("init_prob", img_idx)] = pred_prob_s3[:, img_idx, :, :, :]
 
-    #     value_expand = self.expand_num(value, num)
-    #     key_expand = self.expand_num(key, num)
-    #     values = [value_expand[:, img_idx, :, :, :, :] for img_idx in range(num)]
-    #     keys = [key_expand[:, img_idx, :, :, :, :] for img_idx in range(num)]
-    #     detached_values = [value.detach() for value in values]
-    #     detached_keys = [key.detach() for key in keys]
+        value_expand = self.expand_num(value, num)
+        key_expand = self.expand_num(key, num)
+        values = [value_expand[:, img_idx, :, :, :, :] for img_idx in range(num)]
+        keys = [key_expand[:, img_idx, :, :, :, :] for img_idx in range(num)]
+        detached_values = [value.detach() for value in values]
+        detached_keys = [key.detach() for key in keys]
 
-    #     ######################################################################
+        ######################################################################
 
-    #     all_fused_logits = self.stereo_head1(value).squeeze(1)
-    #     fused_logits = all_fused_logits
-    #     pred_depth_s2, pred_prob_s2 = depthlayer(fused_logits, depth_values_highres)
-    #     pred_depth_s2 = self.expand_num(pred_depth_s2, num)  # [B, num,1,H,W]
-    #     pred_prob_s2 = self.expand_num(pred_prob_s2, num)
-    #     for img_idx in range(num):
-    #         outputs[("depth", img_idx, 2)] = pred_depth_s2[:, img_idx, :, :, :]
-    #         outputs[("fused_prob", img_idx)] = pred_prob_s2[:, img_idx, :, :, :]
+        all_fused_logits = self.stereo_head1(value).squeeze(1)
+        fused_logits = all_fused_logits
+        pred_depth_s2, pred_prob_s2 = depthlayer(fused_logits, depth_values_highres)
+        pred_depth_s2 = self.expand_num(pred_depth_s2, num)  # [B, num,1,H,W]
+        pred_prob_s2 = self.expand_num(pred_prob_s2, num)
+        for img_idx in range(num):
+            outputs[("depth", img_idx, 2)] = pred_depth_s2[:, img_idx, :, :, :]
+            outputs[("fused_prob", img_idx)] = pred_prob_s2[:, img_idx, :, :, :]
 
-    #     return (
-    #         outputs,
-    #         {"keys": detached_keys[-1:], "values": detached_values[-1:]},
-    #         cam_poses[-1:],
-    #     )
+        return (
+            outputs,
+            {"keys": detached_keys[-1:], "values": detached_values[-1:]},
+            cam_poses[-1:],
+        )
 
     def forward(
         self,
@@ -458,29 +458,29 @@ class DepthHybridDecoder(nn.Module):
         pre_cam_poses=None,
         mode="train",
     ):
-        # flag = self.IF_EST_transformer & (pre_costs is not None or mode == "train")
+        flag = self.IF_EST_transformer & (pre_costs is not None or mode == "train")
 
-        # if flag:
-        return self.forward_transformer(
-            costvolumes,
-            semantic_features,
-            cam_poses,
-            cam_intr,
-            depth_values,
-            depth_min,
-            depth_interval,
-            pre_costs,
-            pre_cam_poses,
-        )
-        # else:
-        #     return self.forward_notransformer(
-        #         costvolumes,
-        #         semantic_features,
-        #         cam_poses,
-        #         cam_intr,
-        #         depth_values,
-        #         depth_min,
-        #         depth_interval,
-        #         pre_costs,
-        #         pre_cam_poses,
-        #     )
+        if flag:
+            return self.forward_transformer(
+                costvolumes,
+                semantic_features,
+                cam_poses,
+                cam_intr,
+                depth_values,
+                depth_min,
+                depth_interval,
+                pre_costs,
+                pre_cam_poses,
+            )
+        else:
+            return self.forward_notransformer(
+                costvolumes,
+                semantic_features,
+                cam_poses,
+                cam_intr,
+                depth_values,
+                depth_min,
+                depth_interval,
+                pre_costs,
+                pre_cam_poses,
+            )
