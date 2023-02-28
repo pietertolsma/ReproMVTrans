@@ -1,0 +1,38 @@
+wandb:
+  log: true
+  dir: ./
+  experiment_name: "28-2-2023"
+  entity: ""
+  project: "mvtrans"
+  save_dir: ./
+hyperparameters:
+  seed: 1337
+train:
+  epochs: 1
+  batch_size: 32
+  num_workers: 4
+optimize:
+  optimizer: "Adam"
+  lr: 0.003
+model:
+  selected: "MVNet"
+  mvnet:
+    parameters:
+      stage1_scale: 4.0
+      stage2_scale: 2.0
+      stage3_scale: 1.0
+      transformer: True
+      view_count: 6
+      resnet: 50
+      ndepths: 64
+      depth_min: 0.01
+      depth_max: 10.0
+datasets:
+  selected: "NerfSynthetic"
+  todd:
+    path: data/todd/
+  nerf_synthetic:
+    root: data/nerf_synthetic/lego
+    train_share: 0.7
+    val_share: 0.2
+    test_share: 0.1

@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "repromvtrans"
+version = "0.1.0"
+description = ""
+authors = ["Pieter Tolsma <epieter.tolsma@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+torch = "^1.13.1"
+omegaconf = "^2.3.0"
+pytorch-lightning = "^1.9.3"
+torchvision = "^0.14.1"
+scipy = "^1.10.1"
+wandb = "^0.13.10"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
