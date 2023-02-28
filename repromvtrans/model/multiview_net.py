@@ -6,6 +6,7 @@ from repromvtrans.model.submodules.psm_submodule import PSMFeatureExtraction
 from repromvtrans.model.submodules.resnet_encoder import ResnetEncoder
 from repromvtrans.utils.epipolar_ops import homo_warping
 from repromvtrans.utils.transform_ops import scale_basis
+from repromvtrans.utils.layer_operations import convbn_3d, convbnrelu_3d
 
 
 class MVNet(nn.Module):
@@ -33,6 +34,10 @@ class MVNet(nn.Module):
             cfg.model.mvnet.parameters.resnet, pretrained=True
         )
 
+        self.pre0 = convbn_3d(64, 32, 1, 1, 0)
+        self.pre1 = convbnrelu_3d(32, 32, 3, 1, 1)
+        self.pre2 = convbn_3d(32, 32, 3, 1, 1)
+
         self.costRegNet = DepthHybridDecoder(
             self.semanticFeature.num_ch_enc,
             num_output_channels=1,
@@ -46,6 +51,7 @@ class MVNet(nn.Module):
         self,
         imgs,
         cam_poses,
+        cam_intr,
         pre_costs=None,
         pre_cam_poses=None,
         mode="train",
@@ -78,7 +84,7 @@ class MVNet(nn.Module):
             imgs[:, 0].view(batch_size, -1, height_img, width_img)
         )  # select reference views
 
-        cam_intr_stage1 = scale_basis(cam_poses[0], scale=1.0 / self.stage1_scale)
+        cam_intr_stage1 = scale_basis(cam_intr, scale=1.0 / self.stage1_scale)
         depth_values = (
             self.depth_cands.view(1, self.ndepths, 1, 1)
             .repeat(batch_size, 1, 1, 1)
@@ -94,7 +100,7 @@ class MVNet(nn.Module):
         outputs, cur_costs, cur_cam_poses = self.costRegNet(
             costvolumes=[cost_volume],
             semantic_features=semantic_features,
-            cam_poses=[],
+            cam_poses=cam_poses,
             cam_intr=cam_intr_stage1,
             depth_values=depth_values,
             depth_min=self.depth_min,

@@ -5,12 +5,14 @@ import pytorch_lightning as pl
 import os
 
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.strategies import DDPStrategy
 
 from repromvtrans.dataloaders import data_factory
 from repromvtrans.runner import Runner
 
 
 def main():
+    os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
     cfg = OmegaConf.load("config/config.yaml")
     cmd_cfg = OmegaConf.from_cli()
     cfg = OmegaConf.merge(cfg, cmd_cfg)
@@ -41,8 +43,8 @@ def main():
         max_epochs=cfg.train.epochs,
         default_root_dir=cfg.wandb.save_dir,
         logger=wandb_logger,
-        accelerator="cpu",
-        strategy="ddp_find_unused_parameters_false",
+        accelerator=device,
+        strategy=DDPStrategy(find_unused_parameters=True),
         gpus=torch.cuda.device_count(),
     )
 

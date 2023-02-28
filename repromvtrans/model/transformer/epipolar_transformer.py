@@ -58,7 +58,7 @@ class EpipolarTransformer(nn.Module):
         """
         B, C, D, H, W = target_value.shape
 
-        if warped_values is not None:
+        if len(warped_keys) > 0:
             correlations = []
             for key in warped_keys:
                 correlation = torch.sum(

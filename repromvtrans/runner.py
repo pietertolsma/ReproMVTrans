@@ -3,6 +3,8 @@ import torch
 
 from repromvtrans.model import model_factory
 
+from torchmetrics import PeakSignalNoiseRatio
+
 
 class Runner(pl.LightningModule):
     def __init__(self, cfg):
@@ -11,16 +13,26 @@ class Runner(pl.LightningModule):
         self.cfg = cfg
         self.model = model_factory.factory(cfg)
 
+        self.cam_intr = torch.Tensor(
+            [
+                [
+                    [cfg.datasets.camera.fx, 0, cfg.datasets.camera.px],
+                    [0, cfg.datasets.camera.fy, cfg.datasets.camera.py],
+                    [0, 0, 1],
+                ]
+            ]
+        )
+
         self.loss_fn = torch.nn.HuberLoss()
 
-        self.train_accuracy = torch.nn.HuberLoss()
-        self.val_accuracy = torch.nn.HuberLoss()
-        self.test_accuracy = torch.nn.HuberLoss()
+        self.train_accuracy = PeakSignalNoiseRatio()
+        self.val_accuracy = PeakSignalNoiseRatio()
+        self.test_accuracy = PeakSignalNoiseRatio()
 
         self.device == "cuda" if torch.cuda.is_available() else "cpu"
 
-    def forward(self, rays):
-        return self.model(rays)
+    def forward(self, data):
+        return self.model(data)
 
     def configure_optimizers(self):
         if self.cfg.optimize.optimizer == "Adam":
@@ -33,7 +45,7 @@ class Runner(pl.LightningModule):
 
     def _step(self, batch):
         (imgs, cams), y = batch
-        y_hat = self.model(imgs, cams, device=self.device)
+        y_hat = self.model(imgs, cams, self.cam_intr, device=self.device)
         loss = self.loss_fn(y_hat, y)
         return loss, y_hat
 
