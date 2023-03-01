@@ -4,6 +4,9 @@ import torch.nn as nn
 from repromvtrans.model.submodules.depth_decoder import DepthHybridDecoder
 from repromvtrans.model.submodules.psm_submodule import PSMFeatureExtraction
 from repromvtrans.model.submodules.resnet_encoder import ResnetEncoder
+from repromvtrans.model.submodules.multiview_backbone import MultiviewBackbone
+
+from repromvtrans.utils.depth_outputs import DepthOutput
 from repromvtrans.utils.epipolar_ops import homo_warping
 from repromvtrans.utils.transform_ops import scale_basis
 from repromvtrans.utils.layer_operations import convbn_3d, convbnrelu_3d
@@ -48,6 +51,8 @@ class MVNet(nn.Module):
             IF_EST_transformer=cfg.model.mvnet.parameters.transformer,
         )
 
+        self.multiviewBackbone = MultiviewBackbone()
+
     def forward(
         self,
         imgs,
@@ -71,9 +76,12 @@ class MVNet(nn.Module):
         height = height_img // 4
         width = width_img // 4
 
+        # For every view, run the matching feature pipeline
+        # (same weights for every view). This is done through Spatial Pyramid Pooling
         matching_features = self.matchingFeature(
             imgs.view(batch_size * views_num, 3, height_img, width_img)
-        )  # 32 channels
+        )  # Out: 32 channels
+
         matching_features = matching_features.view(
             batch_size, views_num, -1, height, width
         )
@@ -81,10 +89,12 @@ class MVNet(nn.Module):
             1, 0, 2, 3, 4
         ).contiguous()  # VxBxCxHxW
 
+        # For the reference view, predict semantic features using ResNet.
         semantic_features = self.semanticFeature(
             imgs[:, 0].view(batch_size, -1, height_img, width_img)
-        )  # select reference views
+        )  # select reference views and run ResNet
 
+        # Scale the intrinsic camera parameters (focals).
         cam_intr_stage1 = scale_basis(cam_intr, scale=1.0 / self.stage1_scale)
         depth_values = (
             self.depth_cands.view(1, self.ndepths, 1, 1)
@@ -94,9 +104,14 @@ class MVNet(nn.Module):
         )
 
         # Project the features on the cost volume based on the epipolar lines.
+        # Note that the cost volume has dimension img_height/4 x img_width/4 x ndepths
         cost_volume = self.get_costvolume(
             matching_features, cam_poses, cam_intr_stage1, depth_values, device
         )
+
+        # First upsample the semantic features and then fuse them
+        # with the cost volume.
+        # Return depths, keys and values to be further processed.
 
         outputs, cur_costs, cur_cam_poses = self.costRegNet(
             costvolumes=[cost_volume],
@@ -110,16 +125,26 @@ class MVNet(nn.Module):
             pre_cam_poses=pre_cam_poses,
             mode=mode,
         )
+        small_disp_output = outputs[("depth", 0, 2)].squeeze(dim=1)
+        small_depth_output = DepthOutput(small_disp_output, 1)
 
-        # # obtain the small disparity output for the reference image.
-        # small_disp_output = outputs[("depth", 0, 2)]  # B x 1 x H x W
-        # assert (
-        #     len(small_disp_output.shape) == 4
-        # ), f"Expecting depth to be Nx1xHxW, but got {small_disp_output.shape}"
+        # Next, the multiviewBackbone is used to essentially fuse
+        # the disparity map and the img_features (semantics).
+        # The img_features are reduced from 256 channels to 32,
+        # whereas the disparity map is fed through an MLP to also
+        # get 32 channels.
+        # After calling .cat on both, they are fed through the "rgbd"
+        # backbone, which does convolutions (TODO: Find out what sizes)
+        # Note that we use the second level of the ResNet output.
 
-        if self.use_transformer:
-            return nn.functional.interpolate(outputs[("depth", 0, 2)], size=(800, 800))
-        return outputs[("depth", 0, 0)]
+        # features = self.multiviewBackbone(
+        #     semantic_features[1], outputs[("depth", 0, 2)]
+        # )
+
+        # Now finally, we apply the technique from the paper
+        # "Feature Pyramid Networks" to perform semantic segmentation.
+
+        return small_depth_output
 
     def get_costvolume(self, features, cam_poses, cam_intr, depth_values, device="cpu"):
         """

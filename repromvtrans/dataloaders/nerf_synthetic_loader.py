@@ -46,9 +46,11 @@ class NerfSyntheticParser:
         assert frame_index < self.frame_count, "Index out of bounds"
 
         frame = config["frames"][frame_index]
-        image = Image.open(
-            f"{self.data_path}{frame['file_path'][1:]}_depth_0001.png"
-        ).convert("L")
+        image = (
+            Image.open(f"{self.data_path}{frame['file_path'][1:]}_depth_0001.png")
+            .convert("L")
+            .resize((200, 200))
+        )
         return Tensor(np.array(image)) / 255
 
     def get_cam_transform(self, frame_index: int):

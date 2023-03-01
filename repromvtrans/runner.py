@@ -45,9 +45,10 @@ class Runner(pl.LightningModule):
 
     def _step(self, batch):
         (imgs, cams), y = batch
-        y_hat = self.model(imgs, cams, self.cam_intr, device=self.device)
-        loss = self.loss_fn(y_hat, y)
-        return loss, y_hat
+        depth = self.model(imgs, cams, self.cam_intr, device=self.device)
+        loss = depth.compute_loss(y, device=self.device)
+        # loss = self.loss_fn(y_hat, y)
+        return loss, depth.depth_pred
 
     def training_step(self, batch, batch_idx):
         loss, y_hat = self._step(batch)

@@ -21,17 +21,17 @@ model:
       stage1_scale: 4.0
       stage2_scale: 2.0
       stage3_scale: 1.0
-      transformer: True
-      view_count: 2
+      transformer: False
+      view_count: 3
       resnet: 18
-      ndepths: 2
+      ndepths: 8
       depth_min: 0.01
       depth_max: 10.0
 datasets:
   selected: "NerfSynthetic"
   camera:
-    fx: 1
-    fy: 1
+    fx: 1111
+    fy: 1111
     px: 400
     py: 400
   todd:

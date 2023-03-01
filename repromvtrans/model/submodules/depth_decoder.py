@@ -220,6 +220,7 @@ class DepthHybridDecoder(nn.Module):
         matching_x = self.dres0(costvolumes)
         matching_x = self.dres1(matching_x)
 
+        # Join the semantic features with the 3D CNN.
         x = torch.cat([semantic_vs.unsqueeze(1), matching_x], dim=1)  # [B*num,33,D,H,W]
         x = self.dres2(x)
 
