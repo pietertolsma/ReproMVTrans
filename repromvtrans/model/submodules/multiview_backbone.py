@@ -29,6 +29,8 @@ class MultiviewBackbone(nn.Module):
 
         self.rgbd_network = net.bake()
 
+        self.reduce_channel = nn.Conv2d(64, 32, 1)
+
     def forward_disparity(self, disp):
         return self.disp_network(disp)
 
@@ -37,6 +39,7 @@ class MultiviewBackbone(nn.Module):
 
     def forward(self, img_features, small_disp):
         disp_features = self.forward_disparity(small_disp)
-        rgbd_features = torch.cat([disp_features, img_features])
-        output = self.forward_rgbd(rgbd_features, axis=1)
+        reduced_img_features = self.reduce_channel(img_features)
+        rgbd_features = torch.cat([disp_features, reduced_img_features], axis=1)
+        output = self.forward_rgbd(rgbd_features)
         return output

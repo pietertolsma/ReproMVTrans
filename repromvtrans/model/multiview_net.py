@@ -5,8 +5,10 @@ from repromvtrans.model.submodules.depth_decoder import DepthHybridDecoder
 from repromvtrans.model.submodules.psm_submodule import PSMFeatureExtraction
 from repromvtrans.model.submodules.resnet_encoder import ResnetEncoder
 from repromvtrans.model.submodules.multiview_backbone import MultiviewBackbone
+from repromvtrans.model.submodules.panoptic_fpn import PanopticSegmentationFPN
 
 from repromvtrans.utils.depth_outputs import DepthOutput
+from repromvtrans.utils.seg_outputs import SegmentationOutput
 from repromvtrans.utils.epipolar_ops import homo_warping
 from repromvtrans.utils.transform_ops import scale_basis
 from repromvtrans.utils.layer_operations import convbn_3d, convbnrelu_3d
@@ -15,6 +17,7 @@ from repromvtrans.utils.layer_operations import convbn_3d, convbnrelu_3d
 class MVNet(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+        self.cfg = cfg
         self.use_transformer = cfg.model.mvnet.parameters.transformer
         self.stage1_scale = cfg.model.mvnet.parameters.stage1_scale
         self.stage2_scale = cfg.model.mvnet.parameters.stage2_scale
@@ -52,6 +55,10 @@ class MVNet(nn.Module):
         )
 
         self.multiviewBackbone = MultiviewBackbone()
+
+        self.segmentation = PanopticSegmentationFPN(
+            batch_size=cfg.train.batch_size, out_channels=64, classes=2
+        )
 
     def forward(
         self,
@@ -135,16 +142,18 @@ class MVNet(nn.Module):
         # get 32 channels.
         # After calling .cat on both, they are fed through the "rgbd"
         # backbone, which does convolutions (TODO: Find out what sizes)
-        # Note that we use the second level of the ResNet output.
 
-        # features = self.multiviewBackbone(
-        #     semantic_features[1], outputs[("depth", 0, 2)]
-        # )
+        features = self.multiviewBackbone(
+            semantic_features[1], outputs[("depth", 0, 2)]
+        )  # Outputs a pyramid of shapes, p2 being Bx64x200x200,
+        #   p3 Bx64x100x100 and p4 Bx64x50x50. (With original imsize being 800x800)
 
         # Now finally, we apply the technique from the paper
         # "Feature Pyramid Networks" to perform semantic segmentation.
+        segmented = self.segmentation(features)
+        seg_output = SegmentationOutput(segmented, self.cfg)
 
-        return small_depth_output
+        return small_depth_output, seg_output
 
     def get_costvolume(self, features, cam_poses, cam_intr, depth_values, device="cpu"):
         """

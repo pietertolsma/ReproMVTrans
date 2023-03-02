@@ -7,8 +7,10 @@ wandb:
   save_dir: ./
 hyperparameters:
   seed: 1337
+  loss_seg_mult: 1
 train:
   epochs: 1
+  classes: 2
   batch_size: 1
   num_workers: 8
 optimize:
